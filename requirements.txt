@@ -1,0 +1,7 @@
+gym-super-mario-bros==7.4.0
+matplotlib==3.6.3
+torch==1.13.1
+torchaudio==0.13.1
+torchinfo==1.7.1
+torchvision==0.14.1
+-i https://download.pytorch.org/whl/cu114
