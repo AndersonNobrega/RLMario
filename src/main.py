@@ -79,7 +79,7 @@ def train_agent(env, checkpoint_path):
 
         logger.log_episode()
 
-        if e % 20 == 0:
+        if e % 10 == 0:
             logger.record(episode=e, epsilon=mario.exploration_rate, step=mario.curr_step)
 
 
