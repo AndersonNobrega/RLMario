@@ -1,6 +1,6 @@
 import datetime
+import pathlib
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pathlib import Path
 
 # Super Mario environment for OpenAI Gym
 import gym_super_mario_bros
@@ -14,78 +14,108 @@ from agent import Mario
 from util import MetricLogger
 from wrappers import GrayScaleObservation, ResizeObservation, SkipFrame
 
-parser = ArgumentParser(allow_abbrev=False, description='', formatter_class=RawTextHelpFormatter)
 
-parser.add_argument('-l', '--load_model', action='store_true', help='')
+def get_args():
+    parser = ArgumentParser(allow_abbrev=False, description='', formatter_class=RawTextHelpFormatter)
 
-args = vars(parser.parse_args())
+    parser.add_argument('-c', '--load_checkpoint', type=str, help='Path to load checkpoint file for training.')
+    parser.add_argument('-r', '--replay', type=str, help='Path to load trained model to play.')
 
-print(args['load_model'])
+    return vars(parser.parse_args())
 
-env = gym_super_mario_bros.make("SuperMarioBros-1-1-v0", render_mode='human', apply_api_compatibility=True)
 
-# Limit the action-space to
-#   0. walk right
-#   1. jump right
-env = JoypadSpace(env, [["right"], ["right", "A"]])
+def create_game_env():
+    env = gym_super_mario_bros.make("SuperMarioBros-1-1-v0", render_mode='human', apply_api_compatibility=True)
 
-# Apply Wrappers to environment
-env = SkipFrame(env, skip=4)
-env = GrayScaleObservation(env)
-env = ResizeObservation(env, shape=84)
-env = FrameStack(env, num_stack=4)
+    # Limit the action-space to
+    #   0. walk right
+    #   1. jump right
+    env = JoypadSpace(env, [["right"], ["right", "A"]])
 
-use_cuda = torch.cuda.is_available()
-print(f"Using CUDA: {use_cuda}\n")
+    # Apply Wrappers to environment
+    env = SkipFrame(env, skip=4)
+    env = GrayScaleObservation(env)
+    env = ResizeObservation(env, shape=84)
+    env = FrameStack(env, num_stack=4)
 
-save_dir = Path("checkpoints") / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-save_dir.mkdir(parents=True)
+    return env
 
-checkpoint = Path('trained_mario.chkpt') if args['load_model'] else None
 
-mario = Mario(state_dim=(4, 84, 84), action_dim=env.action_space.n, save_dir=save_dir, checkpoint=checkpoint)
+def train_agent(env, checkpoint_path):
+    save_dir = pathlib.Path().resolve() / pathlib.Path("checkpoints") / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    save_dir.mkdir(parents=True)
 
-if args['load_model']:
+    mario = Mario(state_dim=(4, 84, 84), action_dim=env.action_space.n, save_dir=save_dir, checkpoint=checkpoint_path)
+
+    logger = MetricLogger(save_dir)
+
+    episodes = 40000
+    for e in range(episodes):
+        state = env.reset()
+
+        # Play the game!
+        while True:
+            # Run agent on the state
+            action = mario.act(state)
+
+            # Agent performs action
+            next_state, reward, done, trunc, info = env.step(action)
+
+            # Remember
+            mario.cache(state, next_state, action, reward, done)
+
+            # Learn
+            q, loss = mario.learn()
+
+            # Logging
+            logger.log_step(reward, loss, q)
+
+            # Update state
+            state = next_state
+
+            # Check if end of game
+            if done or info["flag_get"]:
+                break
+
+        logger.log_episode()
+
+        if e % 20 == 0:
+            logger.record(episode=e, epsilon=mario.exploration_rate, step=mario.curr_step)
+
+
+def replay(env, agent_path):
+    mario = Mario(state_dim=(4, 84, 84), action_dim=env.action_space.n, checkpoint=agent_path)
     mario.exploration_rate = mario.exploration_rate_min
 
-logger = MetricLogger(save_dir)
-
-episodes = 50000
-for e in range(episodes):
-
-    state = env.reset()
-
-    # Play the game!
     while True:
+        state = env.reset()
 
-        # env.render()
+        while True:
+            env.render()
 
-        # Run agent on the state
-        action = mario.act(state)
+            action = mario.act(state)
+            next_state, reward, done, trunc, info = env.step(action)
+            state = next_state
 
-        # Agent performs action
-        next_state, reward, done, trunc, info = env.step(action)
+            if done or info["flag_get"]:
+                break
 
-        # Remember
-        mario.cache(state, next_state, action, reward, done)
 
-        # Learn
-        if not args['load_model']:
-            q, loss = mario.learn()
-        else:
-            q, loss = None, None
+def main():
+    # Get CLI args
+    args = get_args()
 
-        # Logging
-        logger.log_step(reward, loss, q)
+    # Get game environment after post processing steps
+    env = create_game_env()
 
-        # Update state
-        state = next_state
+    use_cuda = torch.cuda.is_available()
+    print(f"Using CUDA: {use_cuda}\n")
 
-        # Check if end of game
-        if done or info["flag_get"]:
-            break
+    if args['replay'] is not None:
+        replay(env, args['replay'])
+    else:
+        train_agent(env, args['load_checkpoint'])
 
-    logger.log_episode()
 
-    if e % 20 == 0:
-        logger.record(episode=e, epsilon=mario.exploration_rate, step=mario.curr_step)
+if __name__ == "__main__":
+    main()
