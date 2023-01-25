@@ -1,6 +1,8 @@
 import copy
+
 from torch import nn
 from torchinfo import summary
+
 
 class MarioNet(nn.Module):
     """

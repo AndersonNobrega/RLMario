@@ -1,8 +1,9 @@
-import torch
-from torchvision import transforms as T
-import numpy as np
 import gym
+import numpy as np
+import torch
 from gym.spaces import Box
+from torchvision import transforms as T
+
 
 class GrayScaleObservation(gym.ObservationWrapper):
     def __init__(self, env):

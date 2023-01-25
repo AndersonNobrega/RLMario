@@ -1,5 +1,6 @@
 import gym
 
+
 class SkipFrame(gym.Wrapper):
     def __init__(self, env, skip):
         """Return only every `skip`-th frame"""

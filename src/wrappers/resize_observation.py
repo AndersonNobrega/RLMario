@@ -1,7 +1,8 @@
 import gym
-from torchvision import transforms as T
 import numpy as np
 from gym.spaces import Box
+from torchvision import transforms as T
+
 
 class ResizeObservation(gym.ObservationWrapper):
     def __init__(self, env, shape):
@@ -15,8 +16,6 @@ class ResizeObservation(gym.ObservationWrapper):
         self.observation_space = Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
 
     def observation(self, observation):
-        transforms = T.Compose(
-            [T.Resize(self.shape), T.Normalize(0, 255)]
-        )
+        transforms = T.Compose([T.Resize(self.shape), T.Normalize(0, 255)])
         observation = transforms(observation).squeeze(0)
         return observation
