@@ -7,7 +7,7 @@ Implementation of an agent to play Super Mario Bros following the [Pytorch Reinf
     ```
      virtualenv --python=python3.8 <env_name>
     ```
-2. Activate environment before proceding
+2. Activate environment before proceeding further
     ```
     source <env_name>/bin/activate
     ```
